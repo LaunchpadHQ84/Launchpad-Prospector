@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 
 const supabase = createClient(
   'https://ospwmkurvkylfgbqvcco.supabase.co',
-  'sb_publishable_qm0i5v5AAKB2qgFd_ZZBnA_rTvDy1YC'
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zcHdtaA...'
 )
 
 const GOOGLE_API_KEY = '';
