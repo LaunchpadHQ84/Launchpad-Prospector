@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 
 const supabase = createClient(
   'https://ospwmkurvkylfgbqvcco.supabase.co',
-  import.meta.env.VITE_SUPABASE_KEY
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zcHdta3Vydmt5bGZnYnF2Y2NvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTg2OTcsImV4cCI6MjA5MDk5NDY5N30.cOL9TuoQo2SNQe5CfjkOiAPKgPTK9NrsAwOUZbKgMpY'
 )
 
 const GOOGLE_API_KEY = '';
