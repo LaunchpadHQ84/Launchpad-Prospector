@@ -285,8 +285,8 @@ export default function LaunchpadProspector() {
     if (!selectedIndustry) return;
     if (!location) { alert('Please enter a city, state or zip code first!'); return; }
     setSearching(true); setSearchProgress(0); setSearchLog([]);
-    const searchQuery = selectedSubs.length > 0 ? selectedSubs[0] : selectedIndustry.label;
-    const allQueries = selectedSubs.length > 0 ? selectedSubs : [selectedIndustry.label];
+    const searchQuery = (selectedIndustry.services || [selectedIndustry.label])[0];
+    const allQueries = selectedIndustry.services || [selectedIndustry.label];
     const logMessages = [
       '🔍 Searching Google Maps for: ' + allQueries.join(' + ') + ' near ' + location + '...',
       '📍 Radius: ' + radius + ' miles — pulling real local businesses...',
