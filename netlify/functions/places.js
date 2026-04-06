@@ -1,6 +1,6 @@
 exports.handler = async (event) => {
   const { query, location, radius } = JSON.parse(event.body || '{}');
-  const GOOGLE_API_KEY = 'AIzaSyBLf0yO5huNKB20JN2U1w4bgPxipPlE-Fo';
+  const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
   try {
     const radiusMeters = parseInt(radius) * 1609;
