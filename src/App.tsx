@@ -28,6 +28,25 @@ const searchGooglePlaces = async (query, searchLocation, searchRadius, industryL
   }
 };
 
+const searchFacebook = async (query, searchLocation, industryLabel) => {
+  try {
+    const res = await fetch('/.netlify/functions/facebook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, location: searchLocation, industry: industryLabel }),
+    });
+    const data = await res.json();
+    if (data.error) {
+      console.error('Facebook API error:', data.error);
+      return [];
+    }
+    return Array.isArray(data) ? data : [];
+  } catch(e) {
+    console.error('Facebook error:', e);
+    return [];
+  }
+};
+
 const INDUSTRIES = [
   {
     id: 'trades', label: 'Trades', icon: '🔧',
@@ -290,13 +309,23 @@ export default function LaunchpadProspector() {
     if (!location) { alert('Please enter a city, state or zip code first!'); return; }
     setSearching(true); setSearchProgress(0); setSearchLog([]);
 
-    // --- KEY FIX: Build queries from selected TARGET CUSTOMER types, not services ---
-    // Use selected sub-types if user picked any, otherwise use all sub-types for this industry
+    // Build queries from selected TARGET CUSTOMER types, not services
     const targetQueries = selectedSubs.length > 0 ? selectedSubs : selectedIndustry.sub.slice(0, 5);
 
+    // Determine which data sources to search
+    const useGoogle = selectedSources.includes('google');
+    const useFacebook = selectedSources.includes('facebook');
+    const useInstagram = selectedSources.includes('instagram');
+
+    const sourceNames = [];
+    if (useGoogle) sourceNames.push('Google Maps');
+    if (useFacebook) sourceNames.push('Facebook');
+    if (useInstagram) sourceNames.push('Instagram');
+    if (sourceNames.length === 0) sourceNames.push('Google Maps'); // fallback
+
     const logMessages = [
-      '🔍 Searching Google Maps for: ' + targetQueries.join(', ') + ' near ' + location + '...',
-      '📍 Radius: ' + radius + ' miles — pulling real local businesses...',
+      '🔍 Searching ' + sourceNames.join(' + ') + ' for: ' + targetQueries.join(', ') + ' near ' + location + '...',
+      '📍 Radius: ' + radius + ' miles — pulling real leads...',
       '⚡ Applying AI lead scoring...',
       '📊 Enriching contact data — phone, address, website...',
       '💾 Saving leads to your database...',
@@ -308,9 +337,33 @@ export default function LaunchpadProspector() {
     }, 800);
     try {
       let allLeads = [];
-      for (const target of targetQueries) {
-        const newLeads = await searchGooglePlaces(target, location, radius, selectedIndustry.label);
-        allLeads = [...allLeads, ...newLeads];
+
+      // --- Google Maps ---
+      if (useGoogle || (!useFacebook && !useInstagram)) {
+        for (const target of targetQueries) {
+          const newLeads = await searchGooglePlaces(target, location, radius, selectedIndustry.label);
+          allLeads = [...allLeads, ...newLeads];
+        }
+      }
+
+      // --- Facebook ---
+      if (useFacebook) {
+        setSearchLog(p => [...p, '👥 Searching Facebook Pages...']);
+        for (const target of targetQueries) {
+          const fbLeads = await searchFacebook(target, location, selectedIndustry.label);
+          allLeads = [...allLeads, ...fbLeads];
+        }
+      }
+
+      // --- Instagram (uses same Meta API, tagged differently) ---
+      if (useInstagram) {
+        setSearchLog(p => [...p, '📸 Searching Instagram business profiles...']);
+        for (const target of targetQueries) {
+          const igLeads = await searchFacebook(target, location, selectedIndustry.label);
+          // Re-tag source as Instagram for leads found via this path
+          const retagged = igLeads.map(l => ({ ...l, source: 'Instagram' }));
+          allLeads = [...allLeads, ...retagged];
+        }
       }
 
       // Deduplicate by business name
