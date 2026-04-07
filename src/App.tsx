@@ -9,14 +9,18 @@ const supabase = createClient(
 
 const GOOGLE_API_KEY = '';
 
-const searchGooglePlaces = async (query, searchLocation, searchRadius) => {
+const searchGooglePlaces = async (query, searchLocation, searchRadius, industryLabel) => {
   try {
     const res = await fetch('/.netlify/functions/places', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, location: searchLocation, radius: searchRadius }),
+      body: JSON.stringify({ query, location: searchLocation, radius: searchRadius, industry: industryLabel }),
     });
     const data = await res.json();
+    if (data.error) {
+      console.error('Places API error:', data.error);
+      return [];
+    }
     return Array.isArray(data) ? data : [];
   } catch(e) {
     console.error('Places error:', e);
@@ -285,10 +289,13 @@ export default function LaunchpadProspector() {
     if (!selectedIndustry) return;
     if (!location) { alert('Please enter a city, state or zip code first!'); return; }
     setSearching(true); setSearchProgress(0); setSearchLog([]);
-    const searchQuery = (selectedIndustry.services || [selectedIndustry.label])[0];
-    const allQueries = selectedIndustry.services || [selectedIndustry.label];
+
+    // --- KEY FIX: Build queries from selected TARGET CUSTOMER types, not services ---
+    // Use selected sub-types if user picked any, otherwise use all sub-types for this industry
+    const targetQueries = selectedSubs.length > 0 ? selectedSubs : selectedIndustry.sub.slice(0, 5);
+
     const logMessages = [
-      '🔍 Searching Google Maps for: ' + allQueries.join(' + ') + ' near ' + location + '...',
+      '🔍 Searching Google Maps for: ' + targetQueries.join(', ') + ' near ' + location + '...',
       '📍 Radius: ' + radius + ' miles — pulling real local businesses...',
       '⚡ Applying AI lead scoring...',
       '📊 Enriching contact data — phone, address, website...',
@@ -301,25 +308,48 @@ export default function LaunchpadProspector() {
     }, 800);
     try {
       let allLeads = [];
-      for (const query of allQueries) {
-        const newLeads = await searchGooglePlaces(query, location, radius);
+      for (const target of targetQueries) {
+        const newLeads = await searchGooglePlaces(target, location, radius, selectedIndustry.label);
         allLeads = [...allLeads, ...newLeads];
       }
+
+      // Deduplicate by business name
+      const seen = new Set();
+      allLeads = allLeads.filter(lead => {
+        const key = lead.name.toLowerCase().trim();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
       clearInterval(logInterval);
       if (allLeads.length === 0) {
         setSearchLog(p => [...p, '⚠️ No results found. Try a broader search term or different location.']);
         setSearching(false);
         return;
       }
+      // Insert leads into Supabase — only include columns that exist in the table
       for (const lead of allLeads) {
-        await supabase.from('leads').insert(lead);
+        const { error } = await supabase.from('leads').insert({
+          name: lead.name || '',
+          contact: lead.contact || '',
+          email: lead.email || '',
+          phone: lead.phone || '',
+          type: lead.type || selectedIndustry.label,
+          source: lead.source || 'Google Maps',
+          score: lead.score || 70,
+          status: lead.status || 'New',
+          location: lead.location || '',
+          website: lead.website || '',
+        });
+        if (error) console.error('Supabase insert error:', error.message);
       }
       setSearchProgress(100);
       setSearchLog(p => [...p, '✅ ' + allLeads.length + ' real leads found and saved to your pipeline!']);
       setTimeout(() => { setSearching(false); fetchLeads(); setActiveTab('leads'); }, 1500);
     } catch(err) {
       clearInterval(logInterval);
-      setSearchLog(p => [...p, '⚠️ Error connecting to Google Maps. Please try again.']);
+      setSearchLog(p => [...p, '⚠️ Error connecting to Google Maps: ' + (err.message || 'Please try again.')]);
       setSearching(false);
     }
   };
@@ -732,4 +762,4 @@ export default function LaunchpadProspector() {
       </div>
     </div>
   );
-}   
+}
